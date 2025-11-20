@@ -1,4 +1,17 @@
-streamlit
-numpy
-scipy
-pandas
+# Core numerical stack
+numpy>=1.22
+scipy>=1.10
+pandas>=1.5
+
+# Streamlit UI
+streamlit>=1.30
+
+# File handling
+pathlib
+
+# CLI utilities (safe but optional)
+click
+
+# (Optional but recommended)
+# If you ever serialize results, joblib helps
+joblib
