@@ -11,6 +11,8 @@ import pandas as pd
 # Import your existing engines (same folder)
 from quantum_bricks import parse_cif, TightBindingSolver
 from alchemist import run_alchemy
+from qb_inorganic.analyze import analyze_inorganic
+from alchemist_inorganic import run_alchemy_inorganic
 
 # =====================================================
 #  STREAMLIT CONFIG
@@ -159,9 +161,14 @@ def load_alchemist_summary_and_full(run_dir: Path, mode: str):
 # =====================================================
 
 st.title("⚛️ Quantum Bricks + Alchemist")
-st.caption("Fast physics-based screening and mutation engine for organic semiconductors (no AI, no black boxes).")
+st.caption("Fast physics-based screening and mutation engine for organic semiconductors (plus inorganics) (no AI, no black boxes).")
 
-tab_qb, tab_alch = st.tabs(["Quantum Bricks", "Alchemist"])
+tab_qb, tab_alch, tab_inorg, tab_ac_inorg = st.tabs([
+    "Quantum Bricks",
+    "Alchemist",
+    "QB Inorganics",
+    "AC Inorganics"
+])
 
 
 # =====================================================
@@ -272,7 +279,7 @@ with tab_qb:
         st.markdown("### Current Run Results")
         st.dataframe(
             df_qb.style.apply(highlight_qb, axis=1),
-            use_container_width=True,
+            width='stretch',
         )
 
         csv_bytes = df_qb.to_csv(index=False).encode("utf-8")
@@ -291,7 +298,7 @@ with tab_qb:
         with st.expander("Show full Quantum Bricks history", expanded=False):
             st.dataframe(
                 df_hist.style.apply(highlight_qb, axis=1),
-                use_container_width=True,
+                width='stretch',
             )
 
             csv_hist = df_hist.to_csv(index=False).encode("utf-8")
@@ -322,7 +329,7 @@ with tab_qb:
 
         st.dataframe(
             df_filt.style.apply(highlight_qb, axis=1),
-            use_container_width=True,
+            width='stretch',
         )
 
         st.markdown("#### Dispersion vs Gap (history)")
@@ -412,12 +419,12 @@ with tab_alch:
                             if summary_df is not None:
                                 summary_placeholder.dataframe(
                                     summary_df.style.apply(highlight_alchemist, axis=1),
-                                    use_container_width=True,
+                                    width='stretch',
                                 )
                             if full_df is not None:
                                 full_placeholder.dataframe(
                                     full_df.style.apply(highlight_alchemist, axis=1),
-                                    use_container_width=True,
+                                    width='stretch',
                                 )
                         except Exception:
                             # Ignore partial-write errors and retry next refresh
@@ -438,7 +445,7 @@ with tab_alch:
                         status_placeholder.success(f"Completed. Results folder: `{run_dir}`")
                         summary_placeholder.dataframe(
                             summary_df.style.apply(highlight_alchemist, axis=1),
-                            use_container_width=True,
+                            width='stretch',
                         )
 
                         # Log to history
@@ -461,7 +468,7 @@ with tab_alch:
                     if full_df is not None:
                         full_placeholder.dataframe(
                             full_df.style.apply(highlight_alchemist, axis=1),
-                            use_container_width=True,
+                            width='stretch',
                         )
 
                     # ---- ZIP of full run (all CIF mutants + logs) ----
@@ -509,7 +516,7 @@ with tab_alch:
         with st.expander("Show full Alchemist history", expanded=False):
             st.dataframe(
                 df_hist.style.apply(highlight_alchemist, axis=1),
-                use_container_width=True,
+                width='stretch',
             )
 
             csv_hist = df_hist.to_csv(index=False).encode("utf-8")
@@ -544,7 +551,249 @@ with tab_alch:
 
         st.dataframe(
             df_filt.style.apply(highlight_alchemist, axis=1),
-            use_container_width=True,
+            width='stretch',
         )
     else:
         st.info("No Alchemist history yet. Run a mutation to populate it.", icon="ℹ️")
+
+# =====================================================
+#  TAB 3 — INORGANIC ENGINE
+# =====================================================
+
+with tab_inorg:
+    st.subheader("Inorganic Engine — CIF-based Band Gap & Physics Analyzer")
+
+    st.markdown(
+        """
+        **What this does:**
+
+        - Reads CIF files (with symmetry)
+        - Computes:
+            - Crystal family
+            - Calibrated band gap
+            - Base geometric gap
+            - Dielectric constants
+            - Effective masses
+            - Fermi level offset
+            - Coordination, disorder
+        - Prints full physics summary for each CIF
+        """
+    )
+
+    uploaded_files_inorg = st.file_uploader(
+        "Upload one or more CIF files for Inorganic Engine",
+        accept_multiple_files=True,
+        type=["cif"],
+        key="inorg_uploader",
+    )
+
+    run_inorg = st.button("Run Inorganic Engine", type="primary")
+
+    inorg_history_path = RESULTS_ROOT / "inorganic_history.csv"
+
+    if run_inorg and uploaded_files_inorg:
+        results = []
+        progress = st.progress(0.0)
+
+        for i, uf in enumerate(uploaded_files_inorg):
+            try:
+                cif_path = save_uploaded_file(uf, "inorganic")
+
+                res = analyze_inorganic(str(cif_path))
+
+                row = {
+                    "RunTimestamp": datetime.now().isoformat(timespec="seconds"),
+                    "Filename": uf.name,
+                    "Status": res.get("status"),
+                    "Family": res.get("family"),
+                    "Confidence": res.get("confidence"),
+                    "Formula (simple)": res.get("formula"),
+                    "Formula (canonical)": res.get("formula_canonical", None),
+                    "Gap (eV)": round(res.get("Eg", 0.0), 3),
+                    "BaseGap (eV)": round(res.get("Eg_base", 0.0), 3),
+                    "FermiOffset": round(res.get("E_F", 0.0), 3),
+                    "eps_inf": round(res.get("eps_inf", 0.0), 3),
+                    "eps_static": round(res.get("eps_static", 0.0), 3),
+                    "m_e": round(res.get("m_e", 0.0), 3),
+                    "m_h": round(res.get("m_h", 0.0), 3),
+                    "Dispersion": round(res.get("disp", 0.0), 3),
+                    "NearestBond(Å)": round(res.get("d_nn", 0.0) if res.get("d_nn") else 0.0, 3),
+                    "Atoms": res.get("N_atoms", 0),
+                    "Bonds": res.get("N_bonds", 0),
+                }
+
+                results.append(row)
+
+            except Exception as e:
+                results.append({
+                    "RunTimestamp": datetime.now().isoformat(timespec="seconds"),
+                    "Filename": uf.name,
+                    "Status": f"Error: {e}",
+                })
+
+            progress.progress((i + 1) / len(uploaded_files_inorg))
+
+        df_inorg = pd.DataFrame(results)
+
+        append_history_csv(inorg_history_path, df_inorg)
+
+        st.markdown("### Current Run Results")
+        st.dataframe(df_inorg, width='stretch')
+
+        st.download_button(
+            "Download this run as CSV",
+            df_inorg.to_csv(index=False).encode("utf-8"),
+            file_name="inorganic_results_run.csv",
+            mime="text/csv",
+        )
+
+    st.markdown("### Inorganic Engine History")
+
+    if inorg_history_path.exists():
+        df_hist_inorg = pd.read_csv(inorg_history_path)
+
+        with st.expander("Show full history", expanded=False):
+            st.dataframe(df_hist_inorg, width='stretch')
+
+            st.download_button(
+                "Download full inorganic history",
+                df_hist_inorg.to_csv(index=False).encode("utf-8"),
+                file_name="inorganic_history.csv",
+                mime="text/csv",
+            )
+    else:
+        st.info("No inorganic history yet.", icon="ℹ️")
+
+# =====================================================
+#  TAB — AC INORGANICS (INORGANIC ALCHEMIST)
+# =====================================================
+
+tab_ac_inorg = st.tabs(["AC Inorganics"])[0]
+
+with tab_ac_inorg:
+    st.subheader("AC Inorganics — Mutation Engine for Inorganic CIFs")
+
+    mode = st.selectbox(
+        "Select mode",
+        ["fast", "brute", "both"],
+        index=2
+    )
+
+    uploaded_inorg = st.file_uploader(
+        "Upload inorganic CIF files",
+        type=["cif"],
+        accept_multiple_files=True,
+        key="ac_inorg_upload"
+    )
+
+    run_ac = st.button("Run AC Inorganics", type="primary")
+
+    # HISTORY FILE
+    ac_inorg_hist_path = RESULTS_ROOT / "ac_inorganic_history.csv"
+
+    # ---------------- RUN ----------------
+    if run_ac and uploaded_inorg:
+        progress = st.progress(0)
+
+        all_new_rows = []
+
+        for i, uf in enumerate(uploaded_inorg):
+            cif_path = save_uploaded_file(uf, "ac_inorganic")
+
+            st.info(f"Running AC Inorganics on **{uf.name}**…", icon="⚙️")
+
+            run_dir = run_alchemy_inorganic(str(cif_path), mode)
+
+            # Load output CSVs
+            summary_csv = run_dir / f"summary_{mode}.csv"
+            full_csv = run_dir / f"full_log_{mode}.csv"
+
+            if summary_csv.exists():
+                df_sum = pd.read_csv(summary_csv)
+                st.markdown(f"### Summary — {uf.name}")
+                st.dataframe(df_sum, width='stretch')
+
+                # download summary
+                st.download_button(
+                    f"Download summary for {uf.name}",
+                    df_sum.to_csv(index=False).encode("utf-8"),
+                    file_name=f"{uf.name}_{mode}_summary.csv",
+                    mime="text/csv",
+                )
+
+                # add to batch history
+                df_sum_copy = df_sum.copy()
+                df_sum_copy["CIF"] = uf.name
+                df_sum_copy["Mode"] = mode
+                df_sum_copy["RunDir"] = str(run_dir)
+                df_sum_copy["Timestamp"] = datetime.now().isoformat(timespec="seconds")
+                all_new_rows.append(df_sum_copy)
+
+            if full_csv.exists():
+                df_full = pd.read_csv(full_csv)
+                with st.expander(f"Full Log — {uf.name}"):
+                    st.dataframe(df_full, width='stretch')
+
+                    st.download_button(
+                        f"Download full log for {uf.name}",
+                        df_full.to_csv(index=False).encode("utf-8"),
+                        file_name=f"{uf.name}_{mode}_full_log.csv",
+                        mime="text/csv",
+                    )
+
+            st.success(f"Finished: `{run_dir}`")
+            progress.progress((i + 1) / len(uploaded_inorg))
+
+        # append batch history
+        if all_new_rows:
+            df_new = pd.concat(all_new_rows, ignore_index=True)
+            append_history_csv(ac_inorg_hist_path, df_new)
+
+            st.markdown("### Download this batch summary")
+            st.download_button(
+                "Download batch CSV",
+                df_new.to_csv(index=False).encode("utf-8"),
+                file_name=f"ac_inorganic_batch_{mode}.csv",
+                mime="text/csv",
+            )
+
+    # ---------------- HISTORY ----------------
+    st.markdown("## AC Inorganics — History")
+
+    if ac_inorg_hist_path.exists():
+        df_hist = pd.read_csv(ac_inorg_hist_path)
+
+        with st.expander("Show full history"):
+            st.dataframe(df_hist, width='stretch')
+            st.download_button(
+                "Download full AC Inorganics history",
+                df_hist.to_csv(index=False).encode("utf-8"),
+                file_name="ac_inorganic_history.csv",
+                mime="text/csv"
+            )
+
+        st.markdown("### Filter results")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            sel_family = st.multiselect(
+                "Filter by family",
+                sorted(df_hist["family"].dropna().unique())
+            )
+
+        with col2:
+            min_score = st.slider("Min score", 0.0, 2.0, 0.0, 0.05)
+
+        df_filt = df_hist.copy()
+        if sel_family:
+            df_filt = df_filt[df_filt["family"].isin(sel_family)]
+        df_filt = df_filt[df_filt["score"] >= min_score]
+
+        st.dataframe(df_filt, width='stretch')
+
+        if not df_filt.empty:
+            st.markdown("### Eg vs Score")
+            st.scatter_chart(df_filt, x="Eg", y="score")
+
+    else:
+        st.info("No AC Inorganics history yet.")
