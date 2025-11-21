@@ -565,19 +565,29 @@ with tab_inorg:
 
     st.markdown(
         """
-        **What this does:**
+    **Limitations (v1.0):**
 
-        - Reads CIF files (with symmetry)
-        - Computes:
-            - Crystal family
-            - Calibrated band gap
-            - Base geometric gap
-            - Dielectric constants
-            - Effective masses
-            - Fermi level offset
-            - Coordination, disorder
-        - Prints full physics summary for each CIF
-        """
+    - Full calibrated physics is available **only** for these families:
+        - ABO₃ perovskites  
+        - III–V (GaN, AlN, InN, GaAs, InP)  
+        - II–VI (CdS, CdSe)  
+        - MX₂ dichalcogenides (MoS₂, WS₂)
+
+    - CIFs outside these families are labeled:
+        - `GENERIC`
+        - `OUT_OF_DOMAIN`
+
+    and will **NOT** include:
+        - calibrated dielectric constants  
+        - calibrated effective masses  
+        - tolerance factor / octahedral factor  
+        - Fermi-level calibration
+
+    - The analyzer does **not** perform relaxation, phonons, or DFT —  
+    it is a fast geometric + calibrated-empirical model.
+
+    - CIF must contain readable atomic labels (Ba1, Ti2, O3…).
+    """
     )
 
     uploaded_files_inorg = st.file_uploader(
@@ -672,6 +682,28 @@ tab_ac_inorg = st.tabs(["AC Inorganics"])[0]
 
 with tab_ac_inorg:
     st.subheader("AC Inorganics — Mutation Engine for Inorganic CIFs")
+
+    st.markdown(
+        """
+    **Limitations (v1.0):**
+
+    - Mutants are evaluated using the same inorganic analyzer:
+        - Full physics only for ABO₃, III–V, II–VI, and MX₂ families.
+        - Mutants falling outside these families → `GENERIC / OUT_OF_DOMAIN`.
+
+    - Out-of-domain mutants will **not** show:
+        - dielectric constants  
+        - effective masses  
+        - t-factor / oct-factor  
+        - calibrated Fermi-level offset
+
+    - Only **isotropic strain** is applied (no angle/shear strain).
+
+    - No geometric relaxation for inorganics (unlike organics Alchemist).
+
+    - Some mutations may be chemically unstable; they are still shown for exploration.
+    """
+    )
 
     mode = st.selectbox(
         "Select mode",

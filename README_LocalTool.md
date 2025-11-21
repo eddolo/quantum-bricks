@@ -253,6 +253,172 @@ Combines:
 
 Higher score = better candidate.
 
+
+---
+
+
+# 🧱 Quantum Bricks — **Inorganic Engine** (v2.3)
+
+A fast, deterministic physics engine for **inorganic crystals**, built with:
+
+* full symmetry expansion
+* periodic 3×3×3 bonding
+* ionic / covalent descriptors
+* calibrated band-gap corrections
+* perovskite t-factor and octahedral factor
+* dielectric & effective-mass estimation
+* Fermi level alignment
+
+It does **not** rely on machine learning — all values come from **geometric + empirical physics** models.
+
+---
+
+## 🔍 What It Computes
+
+For each CIF:
+
+* **Crystal family** (e.g., ABO₃_PEROVSKITE, GAN, CDS, MOS2)
+* **Calibrated band gap**
+* **Base geometric band gap** (pre-calibration)
+* **Band dispersion** (mobility proxy)
+* **Coordination type & disorder metric**
+* **Nearest-neighbor bond lengths**
+* **Electronegativity mismatch (Δχ)**
+* **Goldschmidt tolerance factor (perovskites)**
+* **Octahedral factor**
+* **Dielectric constants (ε∞, ε₀)**
+* **Effective masses (mₑ*, mₕ*)**
+* **Fermi level offset**
+* **Canonical chemical formula**
+
+This allows **rapid screening** of oxide semiconductors, nitrides, chalcogenides, perovskites, and related materials.
+
+---
+
+## 🏷 Supported Inorganic Families (Calibrated)
+
+The inorganic engine currently provides *full, calibrated descriptors* only for:
+
+* **ABO₃ perovskites**
+  (SrTiO₃, BaTiO₃, CaTiO₃, KTaO₃, LaAlO₃…)
+
+* **III–V semiconductors**
+  (GaN, AlN, InN, GaAs, InP)
+
+* **II–VI semiconductors**
+  (CdS, CdSe, ZnO)
+
+* **MX₂ dichalcogenides**
+  (MoS₂, WS₂)
+
+Structures outside these families still produce results, but:
+
+✔ Family = `GENERIC`
+✔ Confidence = `OUT_OF_DOMAIN`
+✔ Dielectric/masses/t-factor may be blank
+
+This indicates: **no calibration data exists**, but the structural analysis is valid.
+
+---
+
+# ⚗️ Alchemist — **Inorganic Mutation Engine** (AC Inorganics)
+
+A lightweight inorganic counterpart to the organic Alchemist.
+
+AC Inorganics performs:
+
+1. **Element swaps** in the CIF
+   (e.g., Ti→Zr, O→S/Se/Te, Ga→Al/In, Ba→Sr/Ca…)
+
+2. **Screened evaluations** (no relaxation)
+
+3. **Strain brute-force** sweeps
+   from **−8%** compression to **+18%** expansion
+   using isotropic scaling of a/b/c
+
+4. **Scoring & ranking** based on:
+
+   * semiconductor gap window
+   * dispersion (mobility)
+   * strain penalty
+   * family-specific bonuses
+
+5. **Automatic summaries**
+   `summary_fast.csv`, `summary_brute.csv`, `summary_both.csv`
+
+---
+
+## 🔧 AC Inorganics — Supported Modes
+
+```
+fast   → screened (structure as-is)
+brute  → strain sweep only
+both   → screened + strain sweep
+```
+
+Relaxation mode is intentionally **disabled** for inorganics (no organic-cell relaxation here).
+
+---
+
+## 🔎 Limitations of AC Inorganics (v1.0)
+
+To match expectations clearly:
+
+* Only the families listed above have **full calibrated physics**
+* Mutants outside these families fall back to **GENERIC**
+* No dielectric/masses/t-factor for out-of-domain structures
+* Only **isotropic strain** is applied
+* No angle/shear strain
+* No relaxation (too unreliable for inorganic CIFs)
+* CIF must contain readable labels (Ti1, O2, Ba1…)
+
+Despite this, the engine is extremely fast and excellent for **high-throughput screening**.
+
+---
+
+# 📈 Example AC Inorganics Output Folder
+
+```
+ac_inorganic/
+    BaTiO3/
+        both_2025-11-21_03-56-19/
+            Ti_to_Zr_strain-2.cif
+            O_to_S_strain4.cif
+            Ba_to_Sr_screened.cif
+            summary_both.csv
+            full_log_both.csv
+```
+
+CSV includes:
+
+```
+file, status, family, Eg, disp, formula, strain_pct, score, variant
+```
+
+---
+
+# 🌐 Streamlit Integration
+
+Both **QB Inorganics** and **AC Inorganics** are included in the Streamlit app:
+
+### **QB Inorganics Tab**
+
+* Upload CIFs
+* Perform inorganic band-gap analysis
+* View full physics tables
+* Download per-run CSV + history CSV
+
+### **AC Inorganics Tab**
+
+* Upload CIFs
+* Run mutation engine
+* Preview results inside the browser
+* Download summary + full logs
+* Explore strain diagrams
+* Compare mutations per structure
+
+Full real-time mutation monitoring is supported.
+
 ---
 
 # 🛠 Requirements
