@@ -1,14 +1,14 @@
-import os
 import time
 import threading
 from pathlib import Path
 from datetime import datetime
+import shutil
 
 import streamlit as st
 import numpy as np
 import pandas as pd
 
-# Import your existing engines
+# Import your existing engines (same folder)
 from quantum_bricks import parse_cif, TightBindingSolver
 from alchemist import run_alchemy
 
@@ -351,7 +351,7 @@ with tab_alch:
             - `brute` → strain brute-force
             - `both`  → relax + brute
         - Saves all results under `alchemist/`
-        - Produces `summary_<mode>.csv` + human-readable TXT summaries
+        - Produces `summary_<mode>.csv` + full logs
         """
     )
 
@@ -379,19 +379,21 @@ with tab_alch:
         # Process CIFs one by one (sequential)
         for i, uf in enumerate(uploaded_files_alch):
             cif_name = uf.name
+            cif_stem = Path(cif_name).stem
             cif_key = f"alch_{cif_name}_expanded"
 
-            # Default: expanded while running
+            # Default: expanded while running (we don't override user click, just initial)
             if cif_key not in st.session_state:
                 st.session_state[cif_key] = True
 
-            with st.expander(f"{cif_name}", expanded=st.session_state[cif_key]):
+            with st.expander(f"{cif_name}", expanded=st.session_state.get(cif_key, True)):
                 st.markdown(f"**Mode:** `{mode}`")
 
                 # Per-file UI placeholders
                 status_placeholder = st.empty()
                 summary_placeholder = st.empty()
                 full_placeholder = st.empty()
+                zip_placeholder = st.empty()
 
                 # Save uploaded CIF for this file
                 cif_path = save_uploaded_file(uf, "alchemist_streamlit")
@@ -447,19 +449,45 @@ with tab_alch:
                         df_to_log["RunTimestamp"] = datetime.now().isoformat(timespec="seconds")
                         all_runs_for_history.append(df_to_log)
 
+                        # Download summary CSV for this CIF
+                        csv_summary = summary_df.to_csv(index=False).encode("utf-8")
+                        zip_placeholder.download_button(
+                            "Download summary CSV for this CIF",
+                            csv_summary,
+                            file_name=f"{cif_stem}_{mode}_summary.csv",
+                            mime="text/csv",
+                        )
+
                     if full_df is not None:
                         full_placeholder.dataframe(
                             full_df.style.apply(highlight_alchemist, axis=1),
                             use_container_width=True,
                         )
 
-                # After completion, auto-collapse this expander (but remember if user re-opens later)
+                    # ---- ZIP of full run (all CIF mutants + logs) ----
+                    if run_dir is not None and run_dir.exists():
+                        # zip name: cifstem_mode_timestamp.zip
+                        zip_base = run_dir.parent / f"{cif_stem}_{run_dir.name}"
+                        shutil.make_archive(str(zip_base), "zip", run_dir)
+                        zip_path = zip_base.with_suffix(".zip")
+
+                        with open(zip_path, "rb") as f:
+                            zip_bytes = f.read()
+
+                        zip_placeholder.download_button(
+                            "Download FULL Alchemist results as ZIP",
+                            data=zip_bytes,
+                            file_name=zip_path.name,
+                            mime="application/zip",
+                        )
+
+                # After completion, we *prefer* it collapsed by default next rerun
                 st.session_state[cif_key] = False
 
             # Update global progress bar (sequential across CIFs)
             progress.progress((i + 1) / len(uploaded_files_alch))
 
-        # After all CIFs processed: persist history and offer CSV download
+        # After all CIFs processed: persist history and offer batch CSV download
         if all_runs_for_history:
             df_all_new = pd.concat(all_runs_for_history, ignore_index=True)
             append_history_csv(alch_history_path, df_all_new)
