@@ -678,8 +678,6 @@ with tab_inorg:
 #  TAB — AC INORGANICS (INORGANIC ALCHEMIST)
 # =====================================================
 
-tab_ac_inorg = st.tabs(["AC Inorganics"])[0]
-
 with tab_ac_inorg:
     st.subheader("AC Inorganics — Mutation Engine for Inorganic CIFs")
 
