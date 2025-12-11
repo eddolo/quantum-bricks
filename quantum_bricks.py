@@ -495,6 +495,65 @@ def parse_cif_simple(path):
 
     return lattice, atoms
 
+# ===========================================================
+#   COMPATIBILITY LAYER FOR STREAMLIT APP
+#   (keeps old API: parse_cif + TightBindingSolver)
+# ===========================================================
+
+def parse_cif(path: str):
+    """
+    Backwards-compatible wrapper for the old parse_cif() name.
+    Returns (lattice, atoms) from a CIF file.
+    """
+    return parse_cif_simple(path)
+
+
+class TightBindingSolver:
+    """
+    Thin wrapper around QuantumBricksEngine so existing Streamlit
+    code can keep calling:
+
+        solver = TightBindingSolver(lattice, atoms)
+        gap, disp, radical, axis = solver.solve()
+    """
+
+    def __init__(self, lattice, atoms, dimensionality: str = "3D", relax: bool = False):
+        self.engine = QuantumBricksEngine(
+            lattice=lattice,
+            atoms=atoms,
+            relax=relax,
+            dimensionality=dimensionality,
+        )
+
+    def solve(self):
+        """
+        Returns:
+            gap (float): band gap in eV
+            disp (float): valence-band dispersion (eV)
+            radical (bool): True for radical/metal/problem cases
+            axis (str): axis of highest dispersion ("Γ", "X", "Y", "Z", or "None")
+        """
+        gap, disp, status, axis = self.engine.solve()
+
+        # Map text status -> boolean radical flag for the app
+        radical = False
+        if status != "OK":
+            # treat these as radical/metal-type systems
+            if any(
+                key in status
+                for key in [
+                    "Radical",
+                    "odd electrons",
+                    "Metal",
+                    "No electrons",
+                ]
+            ):
+                radical = True
+            else:
+                # diagonalization errors etc → mark as "bad" too
+                radical = True
+
+        return float(gap), float(disp), radical, axis
 
 # ===========================================================
 #   MAIN
